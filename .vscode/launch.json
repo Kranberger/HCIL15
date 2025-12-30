@@ -5,18 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "C#: MeinBlazorProjekt [http]",
+            "name": "C#: MeinBlazorProjekt [net10.0;http]",
             "type": "dotnet",
             "request": "launch",
             "projectPath": "${workspaceFolder}/MeinBlazorProjekt/MeinBlazorProjekt.csproj",
-            "launchConfigurationId": "TargetFramework=;http"
+            "launchConfigurationId": "TargetFramework=net10.0;http"
         },
         {
-            "name": "C#: mylogger",
-            "type": "dotnet",
+            "name": "C#: mylogger [net10.0]",
+            "type": "coreclr",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/mylogger/mylogger.csproj",
-            "launchConfigurationId": "TargetFramework=;http"
+            "preLaunchTask": "dotnet build (mylogger)",
+            "program": "${workspaceFolder}/mylogger/bin/Debug/net10.0/mylogger.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/mylogger",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
         }
     ]
 }

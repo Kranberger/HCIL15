@@ -19,6 +19,53 @@ internal class Program
     const byte SEND_UINT8  = 0xf0;
     const byte SEND_UINT16 = 0xf1;
 
+// typedef enum
+// {
+//     ADDR_BROADCAST_TO_SUB = 0x29,
+//     // ADDR_TO_MASTER = 0x33,
+//     // ADDR_FROM_MASTER = 0xb3,
+//     ADDR_TO_SUB1 = 0x65,
+//     ADDR_FROM_SUB1 = 0xe5,
+//     ADDR_TO_SUB2 = 0x66,
+//     ADDR_FROM_SUB2 = 0xe6,
+//     ADDR_TO_SUB3 = 0x67,
+//     ADDR_FROM_SUB3 = 0xe7,
+//     ADDR_TO_SUB4 = 0x68,
+//     ADDR_FROM_SUB4 = 0xe8,
+//     ADDR_TO_SUB5 = 0x69,
+//     ADDR_FROM_SUB5 = 0xe9,
+//     ADDR_TO_SUB6 = 0x6a,
+//     ADDR_FROM_SUB6 = 0xea,
+//     ADDR_TO_SUB7 = 0x6b,
+//     ADDR_FROM_SUB7 = 0xeb,
+//     ADDR_TO_SUB8 = 0x6c,
+//     ADDR_FROM_SUB8 = 0xec,
+//     ADDR_TO_SUB9 = 0x6d,
+//     ADDR_FROM_SUB9 = 0xed,
+//     ADDR_TO_SUB10 = 0x6e,
+//     ADDR_FROM_SUB10 = 0xef,
+// } e_SerMsgAddress;
+    const byte ADDR_BROADCAST_TO_SUB = 0x29;
+    const byte ADDR_TO_SUB1 = 0x65;
+    const byte ADDR_FROM_SUB1 = 0xe5;
+    const byte ADDR_TO_SUB2 = 0x66;
+    const byte ADDR_FROM_SUB2 = 0xe6;
+    const byte ADDR_TO_SUB3 = 0x67;
+    const byte ADDR_FROM_SUB3 = 0xe7;
+    const byte ADDR_TO_SUB4 = 0x68;
+    const byte ADDR_FROM_SUB4 = 0xe8;
+    const byte ADDR_TO_SUB5 = 0x69;
+    const byte ADDR_FROM_SUB5 = 0xe9;
+    const byte ADDR_TO_SUB6 = 0x6a;
+    const byte ADDR_FROM_SUB6 = 0xea;
+    const byte ADDR_TO_SUB7 = 0x6b;
+    const byte ADDR_FROM_SUB7 = 0xeb;
+    const byte ADDR_TO_SUB8 = 0x6c;
+    const byte ADDR_FROM_SUB8 = 0xec;
+    const byte ADDR_TO_SUB9 = 0x6d;
+    const byte ADDR_FROM_SUB9 = 0xed;
+    const byte ADDR_TO_SUB10 = 0x6e;
+    const byte ADDR_FROM_SUB10 = 0xef; 
     
     // CRC 8 lookup table
     static byte[] CRC_8_TABLE =
@@ -54,9 +101,64 @@ internal class Program
         return CRC;
     }
 
+    static byte[] poll = {ADDR_BROADCAST_TO_SUB, 0x00, 0x73};
+    static void SendPollForSubs(SerialPort serialPort)
+    {
+        // byte testCrc = OnwWireCrc8(poll, poll.Length - 1);
+        // poll[2] = testCrc;
+        serialPort.Write(poll, 0, poll.Length);
+    }
+
+// 28-40-c8-eb-03-00-00-4e Heizung Vorlauf Pufferspeicher
+// 28-20-b8-67-04-00-00-51 Zuluft vor Kühler
+// 28-a0-da-eb-03-00-00-98 Rücklauf Warmwasser
+// 28-48-b9-eb-03-00-00-4f Heizung Vorlauf Mischer
+// 28-f4-b1-eb-03-00-00-0b Warmwasser ab (Trinkwasser)
+// 28-92-b3-eb-03-00-00-f9 Pufferspeicher Fühler oben
+// 28-72-47-7f-04-00-00-fc Fortluft
+// 28-f6-57-80-04-00-00-5d Sole im Kühler
+// 28-2e-97-7f-04-00-00-f1 Abluft
+// 28-91-2a-67-04-00-00-55 Zuluft hinter Kühler
+// 28-a9-2a-67-04-00-00-19 Außenluft hinter EWT
+// 28-69-be-1b-03-00-00-ee ExtraFühler Puffer oben
+// 28-65-b8-67-04-00-00-cf Vorlauf Fußbodenheizung
+// 28-8d-b7-eb-03-00-00-99 Rücklauf Zirkulation
+// 28-e3-bf-67-04-00-00-c6 Rücklauf Fußbodenheizung
+// 28-bb-a8-eb-03-00-00-d5 Vorlauf Warmwasser (Pufferspeicher)
+// 28-17-ce-eb-03-00-00-79 Sole Rücklauf
+// 28-7f-c2-eb-03-00-00-3a Sole Vorlauf
+
     private static void Main(string[] args)
     {
-        Console.WriteLine("MyLogger V0.34");
+        Console.WriteLine("MyLogger V0.35");
+
+        List<string> preList = [
+            "28-40-c8-eb-03-00-00-4e", "Heizung Vorlauf Pufferspeicher",
+            "28-20-b8-67-04-00-00-51", "Zuluft vor Kühler",
+            "28-a0-da-eb-03-00-00-98", "Rücklauf Warmwasser",
+            "28-48-b9-eb-03-00-00-4f", "Heizung Vorlauf Mischer",
+            "28-f4-b1-eb-03-00-00-0b", "Warmwasser ab (Trinkwasser)",
+            "28-92-b3-eb-03-00-00-f9", "Pufferspeicher Fühler oben",
+            "28-72-47-7f-04-00-00-fc", "Fortluft",
+            "28-f6-57-80-04-00-00-5d", "Sole im Kühler",
+            "28-2e-97-7f-04-00-00-f1", "Abluft",
+            "28-91-2a-67-04-00-00-55", "Zuluft hinter Kühler",
+            "28-a9-2a-67-04-00-00-19", "Außenluft hinter EWT",
+            "28-69-be-1b-03-00-00-ee", "ExtraFühler Puffer oben",
+            "28-65-b8-67-04-00-00-cf", "Vorlauf Fußbodenheizung",
+            "28-8d-b7-eb-03-00-00-99", "Rücklauf Zirkulation",
+            "28-e3-bf-67-04-00-00-c6", "Rücklauf Fußbodenheizung",
+            "28-bb-a8-eb-03-00-00-d5", "Vorlauf Warmwasser (Pufferspeicher)",
+            "28-17-ce-eb-03-00-00-79", "Sole Rücklauf",
+            "28-7f-c2-eb-03-00-00-3a", "Sole Vorlauf",
+            "28-4a-be-eb-03-00-00-70", "Testpunkt Sub1",
+            ];
+        Dictionary<string, string> romNamesDict = [];
+
+        for (int n = 0; n < preList.Count; n += 2)
+        {
+            romNamesDict[preList[n]] = preList[n + 1];
+        }
 
         string[] portNames = SerialPort.GetPortNames();
         foreach (var portName in portNames)
@@ -64,11 +166,11 @@ internal class Program
             Console.WriteLine($"Port={portName}");
         }
 
-        bool binaryMode = false;
+        bool binaryMode = true;
         List<byte[]> data = new();
         SerialPort serialPort = new("/dev/ttyACM0", 115200);
         serialPort.Open();
-        serialPort.ReadTimeout = 500;
+        serialPort.ReadTimeout = 100;
         // serialPort.Write("0");
         // serialPort.Write("1");
         // serialPort.Write("?");
@@ -123,7 +225,8 @@ internal class Program
                         int len = buffer[1];
                         if (len == 0)
                         {
-                            
+                            // Own POLL received
+                            // ...
                         }
                         else if (len > 0)
                         {
@@ -144,10 +247,27 @@ internal class Program
                                 {
                                     Console.Write(Encoding.ASCII.GetString(buffer, 3, len - 1));
                                 }
+                                else if (fun == SEND_UINT16)
+                                {
+                                    if (len >= 3)
+                                    {
+                                        string rom = BitConverter.ToString(buffer, 3, 8).ToLower();
+                                        double value = (((int)buffer[11]) << 4) + (buffer[12] / 16.0);
+                                        string name = string.Empty;
+                                        if (romNamesDict.ContainsKey(rom))
+                                        {
+                                            name = $" ({romNamesDict[rom]})";
+                                        }
+
+                                        Console.WriteLine($"ROM: {rom}{name}, T={value:F1} °C");
+                                    }
+                                }
                                 else
                                 {
-                                    File.AppendAllBytes("output.bin", buffer[..(len + 3)]);
+                                    Console.WriteLine($"Info: Received FUN={fun:X2} with LEN={len}.");
                                 }
+
+                                File.AppendAllBytes("output.bin", buffer[..(len + 3)]);
                             }
                             else
                             {
@@ -169,18 +289,17 @@ internal class Program
                         File.AppendAllBytes("output.txt", buffer[..r]);
                         Console.Write(Encoding.ASCII.GetString(buffer, 0, r));
                     }
-
-                    continue;
                 }
                 catch (TimeoutException)
                 {
-                    continue;
                 }   
                 catch (IOException ioex)
                 {
                     Console.WriteLine($"IO Exception: {ioex.Message}");
                     break;
                 }
+
+                SendPollForSubs(serialPort);
             }
         }
         finally

@@ -109,28 +109,11 @@ internal class Program
         serialPort.Write(poll, 0, poll.Length);
     }
 
-// 28-40-c8-eb-03-00-00-4e Heizung Vorlauf Pufferspeicher
-// 28-20-b8-67-04-00-00-51 Zuluft vor Kühler
-// 28-a0-da-eb-03-00-00-98 Rücklauf Warmwasser
-// 28-48-b9-eb-03-00-00-4f Heizung Vorlauf Mischer
-// 28-f4-b1-eb-03-00-00-0b Warmwasser ab (Trinkwasser)
-// 28-92-b3-eb-03-00-00-f9 Pufferspeicher Fühler oben
-// 28-72-47-7f-04-00-00-fc Fortluft
-// 28-f6-57-80-04-00-00-5d Sole im Kühler
-// 28-2e-97-7f-04-00-00-f1 Abluft
-// 28-91-2a-67-04-00-00-55 Zuluft hinter Kühler
-// 28-a9-2a-67-04-00-00-19 Außenluft hinter EWT
-// 28-69-be-1b-03-00-00-ee ExtraFühler Puffer oben
-// 28-65-b8-67-04-00-00-cf Vorlauf Fußbodenheizung
-// 28-8d-b7-eb-03-00-00-99 Rücklauf Zirkulation
-// 28-e3-bf-67-04-00-00-c6 Rücklauf Fußbodenheizung
-// 28-bb-a8-eb-03-00-00-d5 Vorlauf Warmwasser (Pufferspeicher)
-// 28-17-ce-eb-03-00-00-79 Sole Rücklauf
-// 28-7f-c2-eb-03-00-00-3a Sole Vorlauf
+    static bool binaryMode = true;
 
     private static void Main(string[] args)
     {
-        Console.WriteLine("MyLogger V0.35");
+        Console.WriteLine("MyLogger V0.36");
 
         List<string> preList = [
             "28-40-c8-eb-03-00-00-4e", "Heizung Vorlauf Pufferspeicher",
@@ -166,7 +149,6 @@ internal class Program
             Console.WriteLine($"Port={portName}");
         }
 
-        bool binaryMode = true;
         List<byte[]> data = new();
         SerialPort serialPort = new("/dev/ttyACM0", 115200);
         serialPort.Open();
@@ -188,28 +170,31 @@ internal class Program
 
                     if (key.KeyChar == '0' || key.KeyChar == '1' || key.KeyChar == '?')
                     {
-                        serialPort.Write(key.KeyChar.ToString());
+                        SerialPortSendKey(serialPort, key);
                     }
                     else if (key.KeyChar == '#')
                     {
-                        serialPort.Write(key.KeyChar.ToString());
+                        SerialPortSendKey(serialPort, key);
 
-                        Console.WriteLine("Read all pending data");
-                        int all = 0;
-                        try
+                        if (binaryMode == false)
                         {
-                            while (true)
+                            Console.WriteLine("Read all pending data");
+                            int all = 0;
+                            try
                             {
-                                all += serialPort.Read(buffer, 0, buffer.Length);
-                                Console.WriteLine($"Read {all} bytes so far...");
+                                while (true)
+                                {
+                                    all += serialPort.Read(buffer, 0, buffer.Length);
+                                    Console.WriteLine($"Read {all} bytes so far...");
+                                }
                             }
-                        }
-                        catch (TimeoutException)
-                        {
-                            Console.WriteLine("No more data");
-                        }
+                            catch (TimeoutException)
+                            {
+                                Console.WriteLine("No more data");
+                            }
 
-                        binaryMode = true;
+                            binaryMode = true;
+                        }
                     }
                 }
 
@@ -306,6 +291,21 @@ internal class Program
         {
             serialPort.Close();
             serialPort.Dispose();
+        }
+    }
+
+    static void SerialPortSendKey(SerialPort serialPort, ConsoleKeyInfo key)
+    {
+        if (binaryMode)
+        {
+            byte[] sendkey = {ADDR_TO_SUB1, 0x02, DEBUG_LOG, 0x00, 0xff};
+            sendkey[3] = (byte)key.KeyChar;
+            sendkey[sendkey.Length - 1] = OnwWireCrc8(sendkey, sendkey.Length - 1);
+            serialPort.Write(sendkey, 0, sendkey.Length);
+        }
+        else
+        {
+            serialPort.Write(key.KeyChar.ToString());
         }
     }
 }

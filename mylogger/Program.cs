@@ -4,14 +4,22 @@ using System.Text;
 
 internal class Program
 {
-    const string logfile = "log.txt";
-    const string logfile1 = "log1.txt";
-    const string logfile2 = "log2.txt";
+    static string logfile = "~/ow/log.txt";
+    static string logfile1 = "~/ow/log1.txt";
+    static string logfile2 = "~/ow/log2.txt";
+    static string dumpfile = "~/ow/buffer_dump.bin";
     private static void Main(string[] args)
     {
         SerialPort? serialPort;
         byte[] buffer = new byte[4096];
         StringBuilder sb = new();
+
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        logfile = logfile.Replace("~", home);
+        logfile1 = logfile1.Replace("~", home);
+        logfile2 = logfile2.Replace("~", home);
+        dumpfile = dumpfile.Replace("~", home);
+
         if (File.Exists(logfile))   
         {
             if (File.Exists(logfile2))
@@ -26,10 +34,10 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.37");
+        ConsoleWriteLine("MyLogger V0.38");
 
         DateTime today = DateTime.Now;
-        string csvfile = $"ow_{today:yyyyMMdd}.csv";
+        string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
 
         List<string> preList = [
             "28-40-c8-eb-03-00-00-4e", "Heizung Vorlauf Pufferspeicher",
@@ -235,7 +243,7 @@ internal class Program
         finally
         {
             File.AppendAllText(csvfile, sb.ToString());
-            File.WriteAllBytes("buffer_dump.bin", buffer);
+            File.WriteAllBytes(dumpfile, buffer);
 
             serialPort.Close();
             serialPort.Dispose();

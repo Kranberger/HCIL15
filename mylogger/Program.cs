@@ -4,20 +4,285 @@ using System.Text;
 
 internal class Program
 {
+    const string logfile = "log.txt";
+    const string logfile1 = "log1.txt";
+    const string logfile2 = "log2.txt";
+    private static void Main(string[] args)
+    {
+        SerialPort? serialPort;
+        byte[] buffer = new byte[4096];
+        StringBuilder sb = new();
+        if (File.Exists(logfile))   
+        {
+            if (File.Exists(logfile2))
+            {
+                File.Delete(logfile2);
+            }
+            if (File.Exists(logfile1))  
+            {
+                File.Move(logfile1, logfile2);
+            }
+
+            File.Move(logfile, logfile1);
+        }
+
+        ConsoleWriteLine("MyLogger V0.37");
+
+        DateTime today = DateTime.Now;
+        string csvfile = $"ow_{today:yyyyMMdd}.csv";
+
+        List<string> preList = [
+            "28-40-c8-eb-03-00-00-4e", "Heizung Vorlauf Pufferspeicher",
+            "28-20-b8-67-04-00-00-51", "Zuluft vor Kühler",
+            "28-a0-da-eb-03-00-00-98", "Rücklauf Warmwasser",
+            "28-48-b9-eb-03-00-00-4f", "Heizung Vorlauf Mischer",
+            "28-f4-b1-eb-03-00-00-0b", "Warmwasser ab (Trinkwasser)",
+            "28-92-b3-eb-03-00-00-f9", "Pufferspeicher Fühler oben",
+            "28-72-47-7f-04-00-00-fc", "Fortluft",
+            "28-f6-57-80-04-00-00-5d", "Sole im Kühler",
+            "28-2e-97-7f-04-00-00-f1", "Abluft",
+            "28-91-2a-67-04-00-00-55", "Zuluft hinter Kühler",
+            "28-a9-2a-67-04-00-00-19", "Außenluft hinter EWT",
+            "28-69-be-1b-03-00-00-ee", "ExtraFühler Puffer oben",
+            "28-65-b8-67-04-00-00-cf", "Vorlauf Fußbodenheizung",
+            "28-8d-b7-eb-03-00-00-99", "Rücklauf Zirkulation",
+            "28-e3-bf-67-04-00-00-c6", "Rücklauf Fußbodenheizung",
+            "28-bb-a8-eb-03-00-00-d5", "Vorlauf Warmwasser (Pufferspeicher)",
+            "28-17-ce-eb-03-00-00-79", "Sole Rücklauf",
+            "28-7f-c2-eb-03-00-00-3a", "Sole Vorlauf",
+            "28-4a-be-eb-03-00-00-70", "Testpunkt Sub1",
+            ];
+        Dictionary<string, string> romNamesDict = [];
+
+        for (int n = 0; n < preList.Count; n += 2)
+        {
+            romNamesDict[preList[n]] = preList[n + 1];
+        }
+
+        string[] portNames = SerialPort.GetPortNames();
+        foreach (var portName in portNames)
+        {
+            ConsoleWriteLine($"Port={portName}");
+        }
+
+        serialPort = new("/dev/ttyACM0", 115200);
+        serialPort.Open();
+        //serialPort.WriteTimeout = 200;
+        serialPort.ReadTimeout = 200;
+        
+        SerialPortSendKey(serialPort, new ConsoleKeyInfo('1', ConsoleKey.D1, false, false, false));
+        SerialPortSendKey(serialPort, new ConsoleKeyInfo('?', ConsoleKey.D1, false, false, false));
+
+        try
+        {
+            while (true)
+            {
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(true);
+                    if (key.KeyChar == 'X') // X-Taste zum Beenden
+                    {
+                        break;
+                    }
+
+                    if (key.KeyChar == '1' || key.KeyChar == '?')
+                    {
+                        SerialPortSendKey(serialPort, key);
+                    }
+                    else if (key.KeyChar == '0')
+                    {
+                        SerialPortSendKey(serialPort, key);
+                    }
+                    else if (key.KeyChar == '#')
+                    {
+                        SerialPortSendKey(serialPort, key);
+
+                        if (binaryMode == false)
+                        {
+                            ConsoleWriteLine("Read all pending data");
+                            int all = 0;
+                            try
+                            {
+                                while (true)
+                                {
+                                    all += serialPort.Read(buffer, 0, buffer.Length);
+                                    ConsoleWriteLine($"Read {all} bytes so far...");
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                ConsoleWriteLine("No more data");
+                            }
+
+                            binaryMode = true;
+                        }
+                    }
+                }
+
+                try
+                {
+                    if (binaryMode)
+                    {
+                        if (sb.Length > 10000)
+                        {
+                            File.AppendAllText(csvfile, sb.ToString());
+                            sb.Clear();
+                        }
+
+                        const int minLength = 3;
+                        int r = serialPort.Read(buffer, 0, minLength);
+                        // ADDR
+                        // LEN
+                        // FUN / CRC8
+                        int len = buffer[1];
+                        if (len == 0)
+                        {
+                            // Own POLL received
+                            // ...
+                        }
+                        else if (len > 0)
+                        {
+                            // Read missing bytes
+                            r = serialPort.Read(buffer, 3, len);
+                            if (r != len)
+                            {
+                                ConsoleWriteLine($"Error: Expected {len} bytes, but got {r} bytes.");
+                                break;
+                            }
+
+                            int fullLength = len + 3;
+                            byte crc = OnwWireCrc8(buffer, fullLength - 1);
+                            if (crc == buffer[fullLength - 1])
+                            {
+                                int fun = buffer[2];
+                                if (fun == DEBUG_LOG)
+                                {
+                                    ConsoleWrite(Encoding.ASCII.GetString(buffer, 3, len - 1));
+                                }
+                                else if (fun == ROM_INT16)
+                                {
+                                    if (len == 0x0b)
+                                    {
+                                        string rom = BitConverter.ToString(buffer, 3, 8).ToLower();
+                                        short raw = (short)(buffer[12] | (buffer[11] << 8));
+                                        string value = (raw / 16.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                                        string name = rom;
+                                        if (romNamesDict.ContainsKey(rom))
+                                        {
+                                            name = $"{romNamesDict[rom]}";
+                                        }
+
+                                        ConsoleWriteLine($"{name}, T={value,5} °C");
+
+                                        ulong ticks = ((ulong)DateTime.Now.Ticks) >> 16; // ~10ms ticks
+
+                                        string csv = $"{ticks:X};{rom};{raw:X4};//;{value,5};{name}";
+                                        sb.AppendLine(csv);
+                                    }
+                                    else
+                                    {
+                                        ConsoleWriteLine($"Error: ROM_INT16 with invalid LEN={len}.");
+                                    }
+                                }
+                                else
+                                {
+                                    ConsoleWriteLine($"Info: Received FUN={fun:X2} with LEN={len}.");
+                                }
+
+                                DateTime now = DateTime.Now;
+                                if (now.Day != today.Day)
+                                {
+                                    // New day, switch file
+                                    File.AppendAllText(csvfile, sb.ToString());
+                                    sb.Clear();
+                                    today = now;
+                                    csvfile = $"ow_{today:yyyyMMdd}.csv";
+                                }
+                            }
+                            else
+                            {
+                                ConsoleWriteLine($"Error: CRC mismatch. Calculated {crc}, but received {buffer[fullLength - 1]}.");
+                                break;
+                            }
+
+                        }
+                        else
+                        {
+                            ConsoleWriteLine($"Error: Invalid length {len}.");
+                            break;
+                        }
+
+                    }
+                    else
+                    {
+                        int r = serialPort.Read(buffer, 0, buffer.Length);
+                        File.AppendAllBytes("output.txt", buffer[..r]);
+                        ConsoleWrite(Encoding.ASCII.GetString(buffer, 0, r));
+                    }
+                }
+                catch (TimeoutException)
+                {
+                }   
+                catch (IOException ioex)
+                {
+                    ConsoleWriteLine($"IO Exception: {ioex.Message}");
+                    break;
+                }
+
+                SendPollForSubs(serialPort);
+            }
+        }
+        finally
+        {
+            File.AppendAllText(csvfile, sb.ToString());
+            File.WriteAllBytes("buffer_dump.bin", buffer);
+
+            serialPort.Close();
+            serialPort.Dispose();
+        }
+    }
+
+    static void ConsoleWrite(string message)
+    {
+        Console.Write(message);
+        File.AppendAllText(logfile, message);
+    }
+
+    static void ConsoleWriteLine(string message)
+    {
+        Console.WriteLine(message);
+        File.AppendAllText(logfile, message + Environment.NewLine);
+    }
+
+    static void SerialPortSendKey(SerialPort serialPort, ConsoleKeyInfo key)
+    {
+        if (binaryMode)
+        {
+            byte[] sendkey = {ADDR_TO_SUB1, 0x02, DEBUG_LOG, 0x00, 0xff};
+            sendkey[3] = (byte)key.KeyChar;
+            sendkey[sendkey.Length - 1] = OnwWireCrc8(sendkey, sendkey.Length - 1);
+            serialPort.Write(sendkey, 0, sendkey.Length);
+        }
+        else
+        {
+            serialPort.Write(key.KeyChar.ToString());
+        }
+    }
+
     // typedef enum
     // {
     //     DEBUG_LOG    = 0xd0, // LEN + ASCII-String ()
     //     POLL_REQ     = 0xe0, // No data, similar to POLL message, but for single Sub
     //     REFRESH_ALL  = 0xe1, // No data
-    //     SEND_UINT8   = 0xf0, // ID+UINT8
-    //     SEND_UINT16  = 0xf1, // ID+UINT16
+    //     ROM_INT8   = 0xf0, // ID+UINT8
+    //     ROM_INT16  = 0xf1, // ID+UINT16
     // } e_FUN;
 
     const byte DEBUG_LOG   = 0xd0;
     const byte POLL_REQ    = 0xe0;
     const byte REFRESH_ALL = 0xe1;
-    const byte SEND_UINT8  = 0xf0;
-    const byte SEND_UINT16 = 0xf1;
+    const byte ROM_INT8  = 0xf0;
+    const byte ROM_INT16 = 0xf1;
 
 // typedef enum
 // {
@@ -111,201 +376,4 @@ internal class Program
 
     static bool binaryMode = true;
 
-    private static void Main(string[] args)
-    {
-        Console.WriteLine("MyLogger V0.36");
-
-        List<string> preList = [
-            "28-40-c8-eb-03-00-00-4e", "Heizung Vorlauf Pufferspeicher",
-            "28-20-b8-67-04-00-00-51", "Zuluft vor Kühler",
-            "28-a0-da-eb-03-00-00-98", "Rücklauf Warmwasser",
-            "28-48-b9-eb-03-00-00-4f", "Heizung Vorlauf Mischer",
-            "28-f4-b1-eb-03-00-00-0b", "Warmwasser ab (Trinkwasser)",
-            "28-92-b3-eb-03-00-00-f9", "Pufferspeicher Fühler oben",
-            "28-72-47-7f-04-00-00-fc", "Fortluft",
-            "28-f6-57-80-04-00-00-5d", "Sole im Kühler",
-            "28-2e-97-7f-04-00-00-f1", "Abluft",
-            "28-91-2a-67-04-00-00-55", "Zuluft hinter Kühler",
-            "28-a9-2a-67-04-00-00-19", "Außenluft hinter EWT",
-            "28-69-be-1b-03-00-00-ee", "ExtraFühler Puffer oben",
-            "28-65-b8-67-04-00-00-cf", "Vorlauf Fußbodenheizung",
-            "28-8d-b7-eb-03-00-00-99", "Rücklauf Zirkulation",
-            "28-e3-bf-67-04-00-00-c6", "Rücklauf Fußbodenheizung",
-            "28-bb-a8-eb-03-00-00-d5", "Vorlauf Warmwasser (Pufferspeicher)",
-            "28-17-ce-eb-03-00-00-79", "Sole Rücklauf",
-            "28-7f-c2-eb-03-00-00-3a", "Sole Vorlauf",
-            "28-4a-be-eb-03-00-00-70", "Testpunkt Sub1",
-            ];
-        Dictionary<string, string> romNamesDict = [];
-
-        for (int n = 0; n < preList.Count; n += 2)
-        {
-            romNamesDict[preList[n]] = preList[n + 1];
-        }
-
-        string[] portNames = SerialPort.GetPortNames();
-        foreach (var portName in portNames)
-        {
-            Console.WriteLine($"Port={portName}");
-        }
-
-        List<byte[]> data = new();
-        SerialPort serialPort = new("/dev/ttyACM0", 115200);
-        serialPort.Open();
-        serialPort.ReadTimeout = 100;
-        // serialPort.Write("0");
-        // serialPort.Write("1");
-        // serialPort.Write("?");
-
-        try
-        {
-            byte[] buffer = new byte[256];
-            while (true)
-            {
-                if (Console.KeyAvailable)
-                {
-                    var key = Console.ReadKey(true);
-                    if (key.Key == ConsoleKey.Escape) // Taste zum Beenden (z.B. Escape)
-                        break;
-
-                    if (key.KeyChar == '0' || key.KeyChar == '1' || key.KeyChar == '?')
-                    {
-                        SerialPortSendKey(serialPort, key);
-                    }
-                    else if (key.KeyChar == '#')
-                    {
-                        SerialPortSendKey(serialPort, key);
-
-                        if (binaryMode == false)
-                        {
-                            Console.WriteLine("Read all pending data");
-                            int all = 0;
-                            try
-                            {
-                                while (true)
-                                {
-                                    all += serialPort.Read(buffer, 0, buffer.Length);
-                                    Console.WriteLine($"Read {all} bytes so far...");
-                                }
-                            }
-                            catch (TimeoutException)
-                            {
-                                Console.WriteLine("No more data");
-                            }
-
-                            binaryMode = true;
-                        }
-                    }
-                }
-
-                try
-                {
-                    if (binaryMode)
-                    {
-                        const int minLength = 3;
-                        int r = serialPort.Read(buffer, 0, minLength);
-                        // ADDR
-                        // LEN
-                        // FUN / CRC8
-                        int len = buffer[1];
-                        if (len == 0)
-                        {
-                            // Own POLL received
-                            // ...
-                        }
-                        else if (len > 0)
-                        {
-                            // Read missing bytes
-                            r = serialPort.Read(buffer, 3, len);
-                            if (r != len)
-                            {
-                                Console.WriteLine($"Error: Expected {len} bytes, but got {r} bytes.");
-                                break;
-                            }
-
-                            int fullLength = len + 3;
-                            byte crc = OnwWireCrc8(buffer, fullLength - 1);
-                            if (crc == buffer[fullLength - 1])
-                            {
-                                int fun = buffer[2];
-                                if (fun == DEBUG_LOG)
-                                {
-                                    Console.Write(Encoding.ASCII.GetString(buffer, 3, len - 1));
-                                }
-                                else if (fun == SEND_UINT16)
-                                {
-                                    if (len >= 3)
-                                    {
-                                        string rom = BitConverter.ToString(buffer, 3, 8).ToLower();
-                                        double value = (((int)buffer[11]) << 4) + (buffer[12] / 16.0);
-                                        string name = string.Empty;
-                                        if (romNamesDict.ContainsKey(rom))
-                                        {
-                                            name = $" ({romNamesDict[rom]})";
-                                        }
-
-                                        Console.WriteLine($"ROM: {rom}{name}, T={value:F1} °C");
-                                    }
-                                }
-                                else
-                                {
-                                    Console.WriteLine($"Info: Received FUN={fun:X2} with LEN={len}.");
-                                }
-
-                                File.AppendAllBytes("output.bin", buffer[..(len + 3)]);
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Error: CRC mismatch. Calculated {crc}, but received {buffer[fullLength - 1]}.");
-                                break;
-                            }
-
-                        }
-                        else
-                        {
-                            Console.WriteLine($"Error: Invalid length {len}.");
-                            break;
-                        }
-
-                    }
-                    else
-                    {
-                        int r = serialPort.Read(buffer, 0, buffer.Length);
-                        File.AppendAllBytes("output.txt", buffer[..r]);
-                        Console.Write(Encoding.ASCII.GetString(buffer, 0, r));
-                    }
-                }
-                catch (TimeoutException)
-                {
-                }   
-                catch (IOException ioex)
-                {
-                    Console.WriteLine($"IO Exception: {ioex.Message}");
-                    break;
-                }
-
-                SendPollForSubs(serialPort);
-            }
-        }
-        finally
-        {
-            serialPort.Close();
-            serialPort.Dispose();
-        }
-    }
-
-    static void SerialPortSendKey(SerialPort serialPort, ConsoleKeyInfo key)
-    {
-        if (binaryMode)
-        {
-            byte[] sendkey = {ADDR_TO_SUB1, 0x02, DEBUG_LOG, 0x00, 0xff};
-            sendkey[3] = (byte)key.KeyChar;
-            sendkey[sendkey.Length - 1] = OnwWireCrc8(sendkey, sendkey.Length - 1);
-            serialPort.Write(sendkey, 0, sendkey.Length);
-        }
-        else
-        {
-            serialPort.Write(key.KeyChar.ToString());
-        }
-    }
 }

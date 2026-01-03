@@ -34,7 +34,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.38");
+        ConsoleWriteLine("MyLogger V0.39");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -107,20 +107,8 @@ internal class Program
 
                         if (binaryMode == false)
                         {
-                            ConsoleWriteLine("Read all pending data");
-                            int all = 0;
-                            try
-                            {
-                                while (true)
-                                {
-                                    all += serialPort.Read(buffer, 0, buffer.Length);
-                                    ConsoleWriteLine($"Read {all} bytes so far...");
-                                }
-                            }
-                            catch (TimeoutException)
-                            {
-                                ConsoleWriteLine("No more data");
-                            }
+                            ConsoleWriteLine("Clear serial input buffer");
+                            serialPort.DiscardInBuffer();
 
                             binaryMode = true;
                         }
@@ -204,13 +192,15 @@ internal class Program
                                     File.AppendAllText(csvfile, sb.ToString());
                                     sb.Clear();
                                     today = now;
-                                    csvfile = $"ow_{today:yyyyMMdd}.csv";
+                                    csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
                                 }
                             }
                             else
                             {
                                 ConsoleWriteLine($"Error: CRC mismatch. Calculated {crc}, but received {buffer[fullLength - 1]}.");
-                                break;
+
+                                ConsoleWriteLine("Clear serial input buffer");
+                                serialPort.DiscardInBuffer();
                             }
 
                         }
@@ -266,6 +256,8 @@ internal class Program
     {
         if (binaryMode)
         {
+            SendPollForSubs(serialPort);
+
             byte[] sendkey = {ADDR_TO_SUB1, 0x02, DEBUG_LOG, 0x00, 0xff};
             sendkey[3] = (byte)key.KeyChar;
             sendkey[sendkey.Length - 1] = OnwWireCrc8(sendkey, sendkey.Length - 1);
@@ -282,14 +274,14 @@ internal class Program
     //     DEBUG_LOG    = 0xd0, // LEN + ASCII-String ()
     //     POLL_REQ     = 0xe0, // No data, similar to POLL message, but for single Sub
     //     REFRESH_ALL  = 0xe1, // No data
-    //     ROM_INT8   = 0xf0, // ID+UINT8
-    //     ROM_INT16  = 0xf1, // ID+UINT16
+    //     ROM_PRES   = 0xf0, // ID+UINT8
+    //     ROM_INT16  = 0xf1, // ID+INT16
     // } e_FUN;
 
     const byte DEBUG_LOG   = 0xd0;
     const byte POLL_REQ    = 0xe0;
     const byte REFRESH_ALL = 0xe1;
-    const byte ROM_INT8  = 0xf0;
+    const byte ROM_PRES  = 0xf0;
     const byte ROM_INT16 = 0xf1;
 
 // typedef enum

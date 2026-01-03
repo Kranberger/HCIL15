@@ -34,7 +34,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.39");
+        ConsoleWriteLine("MyLogger V0.40");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -150,10 +150,34 @@ internal class Program
                             byte crc = OnwWireCrc8(buffer, fullLength - 1);
                             if (crc == buffer[fullLength - 1])
                             {
+                                ulong ticks = ((ulong)DateTime.Now.Ticks) >> 16; // ~10ms ticks
                                 int fun = buffer[2];
                                 if (fun == DEBUG_LOG)
                                 {
                                     ConsoleWrite(Encoding.ASCII.GetString(buffer, 3, len - 1));
+                                }
+                                else if (fun == ROM_PRES)
+                                {
+                                    if (len == 0x0a)
+                                    {
+                                        string rom = BitConverter.ToString(buffer, 3, 8).ToLower();
+                                        string connected = (buffer[11] == 1) ? "connected" : "disconnected";
+                                        string name = rom;
+                                        if (romNamesDict.ContainsKey(rom))
+                                        {
+                                            name = $"{romNamesDict[rom]}";
+                                        }
+
+                                        ConsoleWriteLine($"{name} is {connected}");
+
+
+                                        string csv = $"{ticks:X};{rom};{connected};//;{connected};{name}";
+                                        sb.AppendLine(csv);
+                                    }
+                                    else
+                                    {
+                                        ConsoleWriteLine($"Error: ROM_PRES with invalid LEN={len}.");
+                                    }
                                 }
                                 else if (fun == ROM_INT16)
                                 {
@@ -169,8 +193,6 @@ internal class Program
                                         }
 
                                         ConsoleWriteLine($"{name}, T={value,5} °C");
-
-                                        ulong ticks = ((ulong)DateTime.Now.Ticks) >> 16; // ~10ms ticks
 
                                         string csv = $"{ticks:X};{rom};{raw:X4};//;{value,5};{name}";
                                         sb.AppendLine(csv);
@@ -203,6 +225,7 @@ internal class Program
                                 serialPort.DiscardInBuffer();
                             }
 
+                            SendPollForSubs(serialPort);
                         }
                         else
                         {

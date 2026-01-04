@@ -34,7 +34,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.40");
+        ConsoleWriteLine("MyLogger V0.42");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -91,6 +91,14 @@ internal class Program
                     if (key.KeyChar == 'X') // X-Taste zum Beenden
                     {
                         break;
+                    }
+
+                    if (key.KeyChar == 'S')
+                    {
+                        File.AppendAllText(csvfile, sb.ToString());
+                        sb.Clear();
+                        ConsoleWriteLine("Saved CSV data to file.");
+                        continue;
                     }
 
                     if (key.KeyChar == '1' || key.KeyChar == '?')
@@ -161,7 +169,11 @@ internal class Program
                                     if (len == 0x0a)
                                     {
                                         string rom = BitConverter.ToString(buffer, 3, 8).ToLower();
-                                        string connected = (buffer[11] == 1) ? "connected" : "disconnected";
+                                        string connected = "disconnected";
+                                        if (buffer[11] > 0)
+                                        {
+                                            connected = $"connected{buffer[11]}";
+                                        }
                                         string name = rom;
                                         if (romNamesDict.ContainsKey(rom))
                                         {
@@ -271,8 +283,9 @@ internal class Program
 
     static void ConsoleWriteLine(string message)
     {
-        Console.WriteLine(message);
-        File.AppendAllText(logfile, message + Environment.NewLine);
+        string s = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}";
+        Console.WriteLine(s);
+        File.AppendAllText(logfile, s + Environment.NewLine);
     }
 
     static void SerialPortSendKey(SerialPort serialPort, ConsoleKeyInfo key)

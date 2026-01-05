@@ -34,7 +34,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.42");
+        ConsoleWriteLine("MyLogger V0.43");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -135,6 +135,12 @@ internal class Program
 
                         const int minLength = 3;
                         int r = serialPort.Read(buffer, 0, minLength);
+                        while (r != 3)
+                        {
+                            int r2 = serialPort.Read(buffer, r, minLength - r);
+                            r += r2;
+                        }
+
                         // ADDR
                         // LEN
                         // FUN / CRC8
@@ -148,10 +154,10 @@ internal class Program
                         {
                             // Read missing bytes
                             r = serialPort.Read(buffer, 3, len);
-                            if (r != len)
+                            while (r != len)
                             {
-                                ConsoleWriteLine($"Error: Expected {len} bytes, but got {r} bytes.");
-                                break;
+                                int r2 = serialPort.Read(buffer, 3 + r, len - r);
+                                r += r2;
                             }
 
                             int fullLength = len + 3;

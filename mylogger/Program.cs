@@ -36,7 +36,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.48");
+        ConsoleWriteLine("MyLogger V0.51");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -462,7 +462,9 @@ internal class Program
     {
         ADDR_TO_SUB1, 0x0a,
         WRITE_OUTPUT_OW29, 0x29, 0xd4, 0x1a, 0x08, 0x00, 0x00, 0x00, 0xe6, 0x00,
-        0xff};
+        0xff
+    };
+
     static void SendsendOutputOw29ForSub(SerialPort serialPort, byte sub, byte outputValue)
     {
         sendOutputOw29[0] = (byte)(ADDR_TO_SUB1 + (sub - 1));
@@ -471,6 +473,7 @@ internal class Program
         byte crc = OnwWireCrc8(sendOutputOw29, sendOutputOw29.Length - 1);
         sendOutputOw29[sendOutputOw29.Length - 1] = crc;
 
+        ConsoleWriteLine($"Sending OW29 output to Sub{sub}: {outputValue:X2}, CRC={crc:X2} -------------------------------");
         serialPort.Write(sendOutputOw29, 0, sendOutputOw29.Length);
     }
 

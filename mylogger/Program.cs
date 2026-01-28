@@ -1,4 +1,5 @@
 ﻿// ...existing code...
+using System.ComponentModel;
 using System.IO.Ports;
 using System.Text;
 
@@ -34,7 +35,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.43");
+        ConsoleWriteLine("MyLogger V0.44");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -83,6 +84,9 @@ internal class Program
 
         try
         {
+            DateTime outputTestLast = DateTime.Now;
+            int outputTestPulseLength = 30000;
+            byte outputTestValue = 1;
             while (true)
             {
                 if (Console.KeyAvailable)
@@ -131,6 +135,26 @@ internal class Program
                         {
                             File.AppendAllText(csvfile, sb.ToString());
                             sb.Clear();
+                        }
+
+                        DateTime now = DateTime.Now;
+                        TimeSpan otputTestSpan = now - outputTestLast;
+                        if (otputTestSpan.TotalMilliseconds > outputTestPulseLength)
+                        {
+                            outputTestLast = now;
+                            SendsendOutputOw29ForSub(serialPort, 1, outputTestValue);
+                            //ConsoleWriteLine($"OUT={outputTestValue}");
+
+                            if ((outputTestValue & 1) == 1)
+                            {
+                                outputTestPulseLength = 25000;
+                            }
+                            else
+                            {
+                                outputTestPulseLength = 30000;
+                            }
+
+                            outputTestValue++;
                         }
 
                         const int minLength = 3;
@@ -225,7 +249,6 @@ internal class Program
                                     ConsoleWriteLine($"Info: Received FUN={fun:X2} with LEN={len}.");
                                 }
 
-                                DateTime now = DateTime.Now;
                                 if (now.Day != today.Day)
                                 {
                                     // New day, switch file
@@ -372,7 +395,8 @@ internal class Program
     const byte ADDR_TO_SUB9 = 0x6d;
     const byte ADDR_FROM_SUB9 = 0xed;
     const byte ADDR_TO_SUB10 = 0x6e;
-    const byte ADDR_FROM_SUB10 = 0xef; 
+    const byte ADDR_FROM_SUB10 = 0xef;
+    const byte WRITE_OUTPUT_OW29 = 0xf2;
     
     // CRC 8 lookup table
     static byte[] CRC_8_TABLE =
@@ -414,6 +438,27 @@ internal class Program
         // byte testCrc = OnwWireCrc8(poll, poll.Length - 1);
         // poll[2] = testCrc;
         serialPort.Write(poll, 0, poll.Length);
+    }
+
+    // (0x65, 0x0a, 0xf1, 0x28, 0x90, 0xe6, 0x9d, 0x04, 0x00, 0x00, 0x0b, 0x12, 0x90)
+    //              ####  ####  ####  ####  ####  ####  ####  ####  ####  ####  
+    //  +---- +---- +----                                                 +---- +---
+    // ADDR LEN   FUN                                                     OUT   CRC8
+
+    static byte[] sendOutputOw29 =
+    {
+        ADDR_TO_SUB1, 0x0a,
+        WRITE_OUTPUT_OW29, 0x29, 0xd4, 0x1a, 0x08, 0x00, 0x00, 0x00, 0xe6, 0x00,
+        0xff};
+    static void SendsendOutputOw29ForSub(SerialPort serialPort, byte sub, byte outputValue)
+    {
+        sendOutputOw29[0] = (byte)(ADDR_TO_SUB1 + (sub - 1));
+        sendOutputOw29[sendOutputOw29.Length - 2] = outputValue;
+
+        byte crc = OnwWireCrc8(sendOutputOw29, sendOutputOw29.Length - 1);
+        sendOutputOw29[sendOutputOw29.Length - 1] = crc;
+
+        serialPort.Write(sendOutputOw29, 0, sendOutputOw29.Length);
     }
 
     static bool binaryMode = true;

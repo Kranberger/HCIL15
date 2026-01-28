@@ -9,9 +9,10 @@ internal class Program
     static string logfile1 = "~/ow/log1.txt";
     static string logfile2 = "~/ow/log2.txt";
     static string dumpfile = "~/ow/buffer_dump.bin";
+    static SerialPort? serialPort = null;
+
     private static void Main(string[] args)
     {
-        SerialPort? serialPort;
         byte[] buffer = new byte[4096];
         StringBuilder sb = new();
 
@@ -35,7 +36,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.44");
+        ConsoleWriteLine("MyLogger V0.48");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -105,11 +106,7 @@ internal class Program
                         continue;
                     }
 
-                    if (key.KeyChar == '1' || key.KeyChar == '?')
-                    {
-                        SerialPortSendKey(serialPort, key);
-                    }
-                    else if (key.KeyChar == '0')
+                    if (key.KeyChar is '1' or '0' or '?' or '!' or '$')
                     {
                         SerialPortSendKey(serialPort, key);
                     }
@@ -119,18 +116,20 @@ internal class Program
 
                         if (binaryMode == false)
                         {
-                            ConsoleWriteLine("Clear serial input buffer");
-                            serialPort.DiscardInBuffer();
+                            DiscardSerialInputBuffer();
 
                             binaryMode = true;
                         }
                     }
                 }
 
+                int r1 = 0;
                 try
                 {
                     if (binaryMode)
                     {
+                        r1 = 0;
+
                         if (sb.Length > 10000)
                         {
                             File.AppendAllText(csvfile, sb.ToString());
@@ -158,11 +157,11 @@ internal class Program
                         }
 
                         const int minLength = 3;
-                        int r = serialPort.Read(buffer, 0, minLength);
-                        while (r != 3)
+                        r1 = serialPort.Read(buffer, 0, minLength);
+                        while (r1 != 3)
                         {
-                            int r2 = serialPort.Read(buffer, r, minLength - r);
-                            r += r2;
+                            int r2 = serialPort.Read(buffer, r1, minLength - r1);
+                            r1  += r2;
                         }
 
                         // ADDR
@@ -174,10 +173,10 @@ internal class Program
                             // Own POLL received
                             // ...
                         }
-                        else if (len > 0)
+                        else if (len > 0 && len <= 33)
                         {
                             // Read missing bytes
-                            r = serialPort.Read(buffer, 3, len);
+                            int r = serialPort.Read(buffer, 3, len);
                             while (r != len)
                             {
                                 int r2 = serialPort.Read(buffer, 3 + r, len - r);
@@ -262,8 +261,7 @@ internal class Program
                             {
                                 ConsoleWriteLine($"Error: CRC mismatch. Calculated {crc}, but received {buffer[fullLength - 1]}.");
 
-                                ConsoleWriteLine("Clear serial input buffer");
-                                serialPort.DiscardInBuffer();
+                                DiscardSerialInputBuffer();
                             }
 
                             SendPollForSubs(serialPort);
@@ -271,9 +269,8 @@ internal class Program
                         else
                         {
                             ConsoleWriteLine($"Error: Invalid length {len}.");
-                            break;
+                            DiscardSerialInputBuffer();
                         }
-
                     }
                     else
                     {
@@ -284,6 +281,16 @@ internal class Program
                 }
                 catch (TimeoutException)
                 {
+                    if (r1 == 0)
+                    {
+                        // Timeout without data, send poll
+                        SendPollForSubs(serialPort);
+                    }
+                    else
+                    {
+                        ConsoleWriteLine($"Error: Timeout with invalid length {r1}.");
+                        DiscardSerialInputBuffer();
+                    }
                 }   
                 catch (IOException ioex)
                 {
@@ -303,6 +310,12 @@ internal class Program
             serialPort.Dispose();
         }
     }
+
+    static void DiscardSerialInputBuffer()
+    {
+        ConsoleWriteLine("============= Clear serial input buffer =============");
+        serialPort.DiscardInBuffer();
+    }   
 
     static void ConsoleWrite(string message)
     {

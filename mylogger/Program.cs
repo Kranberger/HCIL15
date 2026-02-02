@@ -36,7 +36,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.51");
+        ConsoleWriteLine("MyLogger V0.54");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -61,6 +61,8 @@ internal class Program
             "28-17-ce-eb-03-00-00-79", "Sole Rücklauf",
             "28-7f-c2-eb-03-00-00-3a", "Sole Vorlauf",
             "28-4a-be-eb-03-00-00-70", "Testpunkt Sub1",
+            "29-d4-1a-08-00-00-00-e6", "Testboard 1",
+            "29-e3-42-08-00-00-00-25", "Testboard 2",
             ];
         Dictionary<string, string> romNamesDict = [];
 
@@ -86,7 +88,7 @@ internal class Program
         try
         {
             DateTime outputTestLast = DateTime.Now;
-            int outputTestPulseLength = 30000;
+            TimeSpan outputTestPulseLength = TimeSpan.FromMilliseconds(5000); // 30000;
             byte outputTestValue = 1;
             while (true)
             {
@@ -106,11 +108,7 @@ internal class Program
                         continue;
                     }
 
-                    if (key.KeyChar is '1' or '0' or '?' or '!' or '$')
-                    {
-                        SerialPortSendKey(serialPort, key);
-                    }
-                    else if (key.KeyChar == '#')
+                    if (key.KeyChar == '#')
                     {
                         SerialPortSendKey(serialPort, key);
 
@@ -120,6 +118,10 @@ internal class Program
 
                             binaryMode = true;
                         }
+                    }
+                    else
+                    {
+                        SerialPortSendKey(serialPort, key);
                     }
                 }
 
@@ -138,19 +140,20 @@ internal class Program
 
                         DateTime now = DateTime.Now;
                         TimeSpan otputTestSpan = now - outputTestLast;
-                        if (otputTestSpan.TotalMilliseconds > outputTestPulseLength)
+                        if (otputTestSpan.TotalMilliseconds > outputTestPulseLength.TotalMilliseconds)
                         {
-                            outputTestLast = now;
+                            outputTestLast += outputTestPulseLength;
                             SendsendOutputOw29ForSub(serialPort, 1, outputTestValue);
                             //ConsoleWriteLine($"OUT={outputTestValue}");
 
+                            outputTestPulseLength = TimeSpan.FromMilliseconds(2000);
                             if ((outputTestValue & 1) == 1)
                             {
-                                outputTestPulseLength = 25000;
+                                //outputTestPulseLength = 25000;
                             }
                             else
                             {
-                                outputTestPulseLength = 30000;
+                                //outputTestPulseLength = 30000;
                             }
 
                             outputTestValue++;
@@ -313,6 +316,11 @@ internal class Program
 
     static void DiscardSerialInputBuffer()
     {
+        if (serialPort == null)
+        {
+            return;
+        }
+
         ConsoleWriteLine("============= Clear serial input buffer =============");
         serialPort.DiscardInBuffer();
     }   
@@ -461,8 +469,13 @@ internal class Program
     static byte[] sendOutputOw29 =
     {
         ADDR_TO_SUB1, 0x0a,
-        WRITE_OUTPUT_OW29, 0x29, 0xd4, 0x1a, 0x08, 0x00, 0x00, 0x00, 0xe6, 0x00,
-        0xff
+        WRITE_OUTPUT_OW29,
+        // OW29 ID
+        // 29-d4-1a-08-00-00-00-e6
+        // 29-e3-42-08-00-00-00-25
+        0x29, 0xe3, 0x42, 0x08, 0x00, 0x00, 0x00, 0x25,
+        0x00, // Output value placeholder
+        0xff // CRC8 placeholder
     };
 
     static void SendsendOutputOw29ForSub(SerialPort serialPort, byte sub, byte outputValue)
@@ -473,7 +486,7 @@ internal class Program
         byte crc = OnwWireCrc8(sendOutputOw29, sendOutputOw29.Length - 1);
         sendOutputOw29[sendOutputOw29.Length - 1] = crc;
 
-        ConsoleWriteLine($"Sending OW29 output to Sub{sub}: {outputValue:X2}, CRC={crc:X2} -------------------------------");
+        //ConsoleWriteLine($"Sending OW29 output to Sub{sub}: {outputValue:X2}, CRC={crc:X2} -------------------------------");
         serialPort.Write(sendOutputOw29, 0, sendOutputOw29.Length);
     }
 

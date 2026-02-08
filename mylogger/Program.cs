@@ -36,7 +36,7 @@ internal class Program
             File.Move(logfile, logfile1);
         }
 
-        ConsoleWriteLine("MyLogger V0.54");
+        ConsoleWriteLine("MyLogger V0.55");
 
         DateTime today = DateTime.Now;
         string csvfile = $"{home}/ow/ow_{today:yyyyMMdd}.csv";
@@ -80,7 +80,7 @@ internal class Program
         serialPort = new("/dev/ttyACM0", 115200);
         serialPort.Open();
         //serialPort.WriteTimeout = 200;
-        serialPort.ReadTimeout = 200;
+        serialPort.ReadTimeout = 20;
         
         SerialPortSendKey(serialPort, new ConsoleKeyInfo('1', ConsoleKey.D1, false, false, false));
         SerialPortSendKey(serialPort, new ConsoleKeyInfo('?', ConsoleKey.D1, false, false, false));
@@ -146,7 +146,7 @@ internal class Program
                             SendsendOutputOw29ForSub(serialPort, 1, outputTestValue);
                             //ConsoleWriteLine($"OUT={outputTestValue}");
 
-                            outputTestPulseLength = TimeSpan.FromMilliseconds(2000);
+                            outputTestPulseLength = TimeSpan.FromMilliseconds(1000);
                             if ((outputTestValue & 1) == 1)
                             {
                                 //outputTestPulseLength = 25000;
@@ -221,6 +221,28 @@ internal class Program
                                     else
                                     {
                                         ConsoleWriteLine($"Error: ROM_PRES with invalid LEN={len}.");
+                                    }
+                                }
+                                else if (fun == READ_INPUT)
+                                {
+                                    if (len == 0x0a)
+                                    {
+                                        string rom = BitConverter.ToString(buffer, 3, 8).ToLower();
+                                        string name = rom;
+                                        if (romNamesDict.ContainsKey(rom))
+                                        {
+                                            name = $"{romNamesDict[rom]}";
+                                        }
+
+                                        ConsoleWriteLine($"{name} input={buffer[11]}");
+
+
+                                        string csv = $"{ticks:X};{rom};input={buffer[11]};//;input={buffer[11]};{name}";
+                                        sb.AppendLine(csv);
+                                    }
+                                    else
+                                    {
+                                        ConsoleWriteLine($"Error: READ_INPUT with invalid LEN={len}.");
                                     }
                                 }
                                 else if (fun == ROM_INT16)
@@ -369,6 +391,7 @@ internal class Program
     const byte REFRESH_ALL = 0xe1;
     const byte ROM_PRES  = 0xf0;
     const byte ROM_INT16 = 0xf1;
+    const byte READ_INPUT = 0xf3;
 
 // typedef enum
 // {
